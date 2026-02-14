@@ -939,11 +939,17 @@
 
       // ── "No" button that dodges the cursor ──
       const noBtn = document.getElementById("noBtn");
-      let dodgeCount = 0;
 
       function dodgeNoButton() {
-        dodgeCount++;
         const btn = noBtn;
+
+        // On first dodge, move the button to <body> so position:fixed
+        // isn't broken by parent transforms on .container
+        if (!btn.classList.contains("dodging")) {
+          btn.classList.add("dodging");
+          document.body.appendChild(btn);
+        }
+
         const bw = btn.offsetWidth;
         const bh = btn.offsetHeight;
         const pad = 20;
@@ -954,17 +960,8 @@
         const newX = pad + Math.random() * Math.max(maxX - pad, 0);
         const newY = pad + Math.random() * Math.max(maxY - pad, 0);
 
-        if (!btn.classList.contains("dodging")) {
-          btn.classList.add("dodging");
-        }
         btn.style.left = newX + "px";
         btn.style.top = newY + "px";
-
-        // After dodging a few times, shrink and fade
-        if (dodgeCount >= 5) {
-          btn.style.transform = `scale(${Math.max(0.4, 1 - (dodgeCount - 4) * 0.15)})`;
-          btn.style.opacity = Math.max(0.3, 1 - (dodgeCount - 4) * 0.15);
-        }
       }
 
       // Desktop: dodge on mouseenter
