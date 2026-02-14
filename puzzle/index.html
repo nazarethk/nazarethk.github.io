@@ -455,7 +455,8 @@
         .puzzle-reveal-text .valentine-question {
           font-size: 18px;
         }
-        .yes-only-btn {
+        .yes-only-btn,
+        .no-btn {
           font-size: 18px;
         }
         .success-yay {
@@ -482,7 +483,8 @@
         .puzzle-reveal-text .valentine-question {
           font-size: 16px;
         }
-        .yes-only-btn {
+        .yes-only-btn,
+        .no-btn {
           font-size: 16px;
         }
         .success-yay {
@@ -508,7 +510,8 @@
         .puzzle-reveal-text .valentine-question {
           font-size: 14px;
         }
-        .yes-only-btn {
+        .yes-only-btn,
+        .no-btn {
           font-size: 14px;
         }
         .success-yay {
@@ -615,9 +618,106 @@
       .reset-btn:hover {
         color: #111;
       }
+
+      /* ── Button row: Yes + No ── */
+      .btn-row {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        align-items: center;
+        margin-top: 8px;
+        position: relative;
+      }
+
+      .no-btn {
+        font-size: 20px;
+        padding: 12px 24px;
+        background: #fff;
+        color: #aaa;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        border-radius: 50px;
+        cursor: pointer;
+        font-weight: 600;
+        font-family: inherit;
+        transition: transform 0.1s ease, box-shadow 0.1s ease;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      .no-btn.dodging {
+        position: fixed;
+        z-index: 9999;
+        pointer-events: auto;
+        transition: none;
+      }
+
+      /* ── Hint / Peek button ── */
+      .hint-btn {
+        margin-top: 14px;
+        padding: 6px 18px;
+        background: none;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        border-radius: 20px;
+        color: #999;
+        font-size: 13px;
+        cursor: pointer;
+        font-family: inherit;
+        transition: color 0.2s ease, border-color 0.2s ease;
+      }
+
+      .hint-btn:hover {
+        color: #666;
+        border-color: rgba(0, 0, 0, 0.25);
+      }
+
+      .hint-btn.hidden {
+        display: none;
+      }
+
+      /* ── Floating hearts background ── */
+      .floating-hearts-container {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+        overflow: hidden;
+      }
+
+      .floating-heart {
+        position: absolute;
+        bottom: -40px;
+        opacity: 0;
+        pointer-events: none;
+        animation: floatUpHeart linear forwards;
+      }
+
+      .floating-heart svg {
+        width: 100%;
+        height: 100%;
+      }
+
+      @keyframes floatUpHeart {
+        0% {
+          transform: translateY(0) rotate(0deg) scale(0.8);
+          opacity: 0;
+        }
+        8% {
+          opacity: 1;
+        }
+        85% {
+          opacity: 1;
+        }
+        100% {
+          transform: translateY(calc(-100vh - 60px)) rotate(35deg) scale(1);
+          opacity: 0;
+        }
+      }
     </style>
   </head>
   <body>
+    <!-- Floating hearts background -->
+    <div class="floating-hearts-container" id="floatingHearts"></div>
+
     <!-- ENVELOPE: no modal, just envelope on pink background -->
     <div id="envelopeStage">
       <div class="envelope" id="envelope">
@@ -650,7 +750,7 @@
     <div class="container">
       <div class="modal-inner">
         <div id="puzzleView" class="modal-view">
-          <h1 class="modal-title">Jessica...</h1>
+          <h1 class="modal-title" id="puzzleTitle">Solve the puzzle!</h1>
           <div class="puzzle-container" id="puzzleContainer">
             <div class="puzzle-grid-wrap" id="puzzleGridWrap">
               <div class="puzzle-grid" id="puzzleGrid"></div>
@@ -659,10 +759,14 @@
               </div>
             </div>
           </div>
+          <button type="button" class="hint-btn" id="hintBtn">Peek</button>
           <div class="puzzle-reveal-text" id="puzzleRevealText">
             <p class="complete-line">...you complete me.</p>
             <p class="valentine-question">Will you be my Valentine?</p>
-            <button type="button" class="yes-only-btn" id="yesBtn">Yes</button>
+            <div class="btn-row">
+              <button type="button" class="yes-only-btn" id="yesBtn">Yes</button>
+              <button type="button" class="no-btn" id="noBtn">No</button>
+            </div>
           </div>
         </div>
 
@@ -786,6 +890,9 @@
         const puzzleFullImageOverlay = document.getElementById("puzzleFullImageOverlay");
         const emptyTile = puzzleGrid.querySelector(".puzzle-tile.empty");
         if (emptyTile) emptyTile.style.backgroundImage = "url('images/tile-3.png')";
+        // Hide hint button and update title once solved
+        document.getElementById("hintBtn").classList.add("hidden");
+        document.getElementById("puzzleTitle").textContent = "Jess💎...";
         puzzleContainer.classList.add("completed");
         puzzleGrid.classList.add("merging");
         setTimeout(() => {
@@ -818,6 +925,9 @@
         runConfettiFor(10000);
         container.classList.add("container--success");
         puzzleView.classList.remove("visible");
+        // Remove any dodging "No" button still on screen
+        const dodgingNo = document.querySelector(".no-btn.dodging");
+        if (dodgingNo) dodgingNo.remove();
         requestAnimationFrame(() => {
           requestAnimationFrame(() => successView.classList.add("visible"));
         });
@@ -826,6 +936,99 @@
       document.getElementById("resetBtn").addEventListener("click", () => {
         window.location.reload();
       });
+
+      // ── "No" button that dodges the cursor ──
+      const noBtn = document.getElementById("noBtn");
+      let dodgeCount = 0;
+
+      function dodgeNoButton() {
+        dodgeCount++;
+        const btn = noBtn;
+        const bw = btn.offsetWidth;
+        const bh = btn.offsetHeight;
+        const pad = 20;
+
+        // Move to a random spot within the viewport
+        const maxX = window.innerWidth - bw - pad;
+        const maxY = window.innerHeight - bh - pad;
+        const newX = pad + Math.random() * Math.max(maxX - pad, 0);
+        const newY = pad + Math.random() * Math.max(maxY - pad, 0);
+
+        if (!btn.classList.contains("dodging")) {
+          btn.classList.add("dodging");
+        }
+        btn.style.left = newX + "px";
+        btn.style.top = newY + "px";
+
+        // After dodging a few times, shrink and fade
+        if (dodgeCount >= 5) {
+          btn.style.transform = `scale(${Math.max(0.4, 1 - (dodgeCount - 4) * 0.15)})`;
+          btn.style.opacity = Math.max(0.3, 1 - (dodgeCount - 4) * 0.15);
+        }
+      }
+
+      // Desktop: dodge on mouseenter
+      noBtn.addEventListener("mouseenter", dodgeNoButton);
+      // Mobile: dodge on touchstart
+      noBtn.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        dodgeNoButton();
+      });
+
+      // ── Hint / Peek button ──
+      const hintBtn = document.getElementById("hintBtn");
+      const hintOverlay = document.getElementById("puzzleFullImageOverlay");
+      let hintTimeout = null;
+
+      function showHint() {
+        hintOverlay.classList.add("show");
+      }
+      function hideHint() {
+        hintOverlay.classList.remove("show");
+      }
+
+      // Desktop: show on mousedown, hide on mouseup/leave
+      hintBtn.addEventListener("mousedown", showHint);
+      hintBtn.addEventListener("mouseup", hideHint);
+      hintBtn.addEventListener("mouseleave", hideHint);
+      // Mobile: show on touchstart, hide on touchend
+      hintBtn.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        showHint();
+      });
+      hintBtn.addEventListener("touchend", hideHint);
+
+      // ── Floating hearts background ──
+      const heartsContainer = document.getElementById("floatingHearts");
+      const heartColors = [
+        "rgba(255,180,200,0.45)",
+        "rgba(255,140,170,0.35)",
+        "rgba(255,200,210,0.3)",
+        "rgba(240,130,160,0.25)",
+        "rgba(255,160,190,0.4)",
+      ];
+
+      function spawnFloatingHeart() {
+        const heart = document.createElement("div");
+        heart.className = "floating-heart";
+        const size = 14 + Math.random() * 18;
+        heart.style.width = size + "px";
+        heart.style.height = size + "px";
+        heart.style.left = Math.random() * 100 + "%";
+        const color = heartColors[Math.floor(Math.random() * heartColors.length)];
+        const duration = 6 + Math.random() * 6;
+        heart.style.animationDuration = duration + "s";
+        heart.innerHTML = `<svg viewBox="0 0 24 24" fill="${color}" xmlns="http://www.w3.org/2000/svg"><path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z"/></svg>`;
+        heartsContainer.appendChild(heart);
+        setTimeout(() => heart.remove(), (duration + 1) * 1000);
+      }
+
+      // Spawn hearts at a gentle interval
+      setInterval(spawnFloatingHeart, 800);
+      // Spawn a few immediately for initial ambiance
+      for (let i = 0; i < 5; i++) {
+        setTimeout(spawnFloatingHeart, i * 200);
+      }
 
       function runConfettiFor(ms) {
         const end = Date.now() + ms;
